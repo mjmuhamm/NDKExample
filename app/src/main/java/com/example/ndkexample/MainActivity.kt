@@ -92,13 +92,11 @@ class MainActivity : ComponentActivity() {
 
                     var warmNative = 0L
                     if (userWarmUp) {
-                        val warmStart = System.currentTimeMillis()
+                        val warmAvg = System.currentTimeMillis()
                         repeat(9) {
                             NativeProcessor.convertToGray(workingBitmap)
-                            warmNative = (System.currentTimeMillis() - warmStart ) / 9
                         }
-
-
+                        warmNative = (System.currentTimeMillis() - warmAvg ) / 9
                     }
                     currentStats = BenckmarkStats("Native", firstNative, warmNative, true)
                 }) {
@@ -151,7 +149,7 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     fun BenchmarkTable() {
-        
+
     }
 
     private fun calculateInSampleSize(options: BitmapFactory.Options,
