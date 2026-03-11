@@ -19,11 +19,17 @@ Java_com_example_ndkexample_data_NativeProcessor_convertToGray(
     void *pixels;
     int ret;
 
+    // 1. Get Bitmap info
+    if ((ret = AndroidBitmap_getInfo(env, bitmap, &info)) < 0) {
+        LOGE("AndroidBitmap_getInfo() failed ! error=%d", ret);
+        return;
+    }
+
+    // 2. Lock pixels to get the pointer
     if ((ret = AndroidBitmap_lockPixels(env, bitmap, &pixels)) < 0) {
         LOGE("AndroidBitmap_lockPixels() failed ! error=%d", ret);
         return;
     }
-
     //process pixels
     for (int y = 0; y < info.height; y++) {
         auto *line = (uint32_t *) pixels;

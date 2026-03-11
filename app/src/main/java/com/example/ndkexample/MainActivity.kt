@@ -22,6 +22,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -59,151 +60,160 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    @Composable
-    fun ImageProcessorScreen() {
-        val context = LocalContext.current
+}
 
-        val masterBitmap = remember {
+
+@Composable
+fun ImageProcessorScreen() {
+    val context = LocalContext.current
+
+    val masterBitmap = remember {
+        val options = BitmapFactory.Options().apply {
+            inJustDecodeBounds = true
+            BitmapFactory.decodeResource(context.resources, R.drawable.pexels_inspiredimages_132474, this)
+            inSampleSize = calculateInSampleSize(this, 1024, 1024)
+            inJustDecodeBounds = false
+        }
+        BitmapFactory.decodeResource(context.resources, R.drawable.pexels_inspiredimages_132474, options) ?: createBitmap(100,100)
+    }
+    var workingBitmap by remember { mutableStateOf(masterBitmap.copy(Bitmap.Config.ARGB_8888, true)) }
+
+    var currentStats by remember { mutableStateOf(BenckmarkStats())}
+    var updateTick by remember { mutableIntStateOf(0) }
+
+    var useWarmUp by remember { mutableStateOf(false)}
+    Column(Modifier.fillMaxSize().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Text("NDK vs Kotlin Performance", style = MaterialTheme.typography.headlineMedium)
+        key(updateTick) {
+            Image(
+                bitmap = workingBitmap.asImageBitmap(),
+                contentDescription = null,
+                modifier = Modifier.size(300.dp)
+            )
+        }
+
+        if (currentStats.mode.isNotEmpty()) {
+            BenchmarkTable(stats = currentStats)
+        }
+
+        Row() {
+            Switch(checked = useWarmUp, onCheckedChange = {useWarmUp = it})
+            Text("Enable 10x Iteration (Warm-up", modifier = Modifier.padding(8.dp))
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
+            Button(onClick = {
+                // measure first run separately
+                val start = System.currentTimeMillis()
+                NativeProcessor.convertToGray(workingBitmap)
+                val firstNative = System.currentTimeMillis() - start
+
+                var warmAvg = 0L
+
+                if (useWarmUp) {
+                    val warmStart = System.currentTimeMillis()
+                    repeat(9) {
+                        NativeProcessor.convertToGray(workingBitmap)
+                    }
+                    warmAvg = (System.currentTimeMillis() - warmStart) / 9
+                }
+
+                currentStats = BenckmarkStats("Native", firstNative, warmAvg, false)
+            }) {
+                Text("Run Native")
+            }
+
+            Button(onClick = {
+                // measure first run separately
+                val start = System.currentTimeMillis()
+                NativeProcessor.convertToGrayKotlin(workingBitmap)
+                val firstKotlin = System.currentTimeMillis() - start
+
+                var warmAvg = 0L
+
+                if (useWarmUp) {
+                    val warmStart = System.currentTimeMillis()
+                    repeat(9) {
+                        NativeProcessor.convertToGrayKotlin(workingBitmap)
+                    }
+                    warmAvg = (System.currentTimeMillis() - warmStart) / 9
+                }
+
+                currentStats = BenckmarkStats("Kotlin", firstKotlin, warmAvg, false)
+            }) {
+                Text("Run Kotlin")
+            }
+        }
+
+        Button(onClick = {
+            workingBitmap.recycle()
             val options = BitmapFactory.Options().apply {
-                inJustDecodeBounds = true
-                BitmapFactory.decodeResource(context.resources, R.drawable.pexels_inspiredimages_132474, this)
                 inSampleSize = calculateInSampleSize(this, 1024, 1024)
-                inJustDecodeBounds = false
+                inMutable = true
             }
-            BitmapFactory.decodeResource(context.resources, R.drawable.pexels_inspiredimages_132474, options) ?: createBitmap(100,100)
+            workingBitmap = BitmapFactory.decodeResource(context.resources, R.drawable.pexels_inspiredimages_132474, options) ?: createBitmap(100 , 100)
+
+            //clear benchmark stats and force-trigger garbage collection
+            //cannot reset JIT performance optimization
+            //without restarting app
+
+            currentStats = BenckmarkStats()
+            updateTick++
+            System.gc()
+        }, modifier = Modifier.padding(top = 8.dp)) {
+            Text("Deep Reset (Clear Cache")
         }
-        var workingBitmap by remember { mutableStateOf(masterBitmap.copy(Bitmap.Config.ARGB_8888, true)) }
-
-        var currentStats by remember { mutableStateOf(BenckmarkStats())}
-        var updateTick by remember { mutableIntStateOf(0) }
-
-        var userWarmUp by remember { mutableStateOf(false)}
-        Column(Modifier.fillMaxSize().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("NDK vs Kotlin Performance", style = MaterialTheme.typography.headlineMedium)
-            key(updateTick) {
-                Image(
-                    bitmap = workingBitmap.asImageBitmap(),
-                    contentDescription = null,
-                    modifier = Modifier.size(100.dp)
-                )
-            }
-
-            if (currentStats.mode.isNotEmpty()) {
-                BenchmarkTable(stats = currentStats)
-            }
-
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
-                Button(onClick = {
-                    // measure first run separately
-                    val start = System.currentTimeMillis()
-                    NativeProcessor.convertToGray(workingBitmap)
-                    val firstNative = System.currentTimeMillis() - start
-
-                    var warmNative = 0L
-                    if (userWarmUp) {
-                        val warmAvg = System.currentTimeMillis()
-                        repeat(9) {
-                            NativeProcessor.convertToGray(workingBitmap)
-                        }
-                        warmNative = (System.currentTimeMillis() - warmAvg ) / 9
-                    }
-                    currentStats = BenckmarkStats("Native", firstNative, warmNative, true)
-                }) {
-                    Text("Run Native")
-                }
-
-                Button(onClick = {
-                    // measure first run separately
-                    val start = System.currentTimeMillis()
-                    NativeProcessor.convertToGrayKotlin(workingBitmap)
-                    val firstKotlin = System.currentTimeMillis() - start
-
-                    var warmAvg = 0L
-
-                    if (userWarmUp) {
-                        val warmStart = System.currentTimeMillis()
-                        repeat(9) {
-                            NativeProcessor.convertToGrayKotlin(workingBitmap)
-                        }
-                        warmAvg = (System.currentTimeMillis() - warmStart) / 9
-                    }
-
-                    currentStats = BenckmarkStats("Kotlin", firstKotlin, warmAvg, false)
-                }) {
-                    Text("Run Kotlin")
-                }
-
-                Button(onClick = {
-                    workingBitmap.recycle()
-                    val options = BitmapFactory.Options().apply {
-                        inSampleSize = calculateInSampleSize(this, 1024, 1024)
-                        inMutable = true
-                    }
-                    workingBitmap = BitmapFactory.decodeResource(context.resources, R.drawable.pexels_inspiredimages_132474, options) ?: createBitmap(100 , 100)
-
-                    //clear benchmark stats and force-trigger garbage collection
-                    //cannot reset JIT performance optimization
-                    //without restarting app
-
-                    currentStats = BenckmarkStats()
-                    updateTick++
-                    System.gc()
-                }, modifier = Modifier.padding(top = 8.dp)) {
-                    Text("Deep Reset (Clear Cache")
-                }
-            }
-        }
-
     }
 
-    @Composable
-    fun BenchmarkTable(stats: BenckmarkStats) {
-        Column(modifier =  Modifier.fillMaxWidth().padding(16.dp).clip(RoundedCornerShape(8.dp)).background(
-            MaterialTheme.colorScheme.surfaceVariant).padding(16.dp)) {
+}
 
-            Text(
-                text = "Performance Profile: ${stats.mode}",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary)
+@Composable
+fun BenchmarkTable(stats: BenckmarkStats) {
+    Column(modifier =  Modifier.fillMaxWidth().padding(16.dp).clip(RoundedCornerShape(8.dp)).background(
+        MaterialTheme.colorScheme.surfaceVariant).padding(16.dp)) {
 
-            Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "Performance Profile: ${stats.mode}",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary)
 
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("Cold Start (1st run):", style = MaterialTheme.typography.bodyMedium)
+            Text("${stats.firstRun}ms", fontWeight = FontWeight.Bold, color = Color.Red)
+        }
+        if (stats.warmAvg > 0) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("Cold Start (1st run):", style = MaterialTheme.typography.bodyMedium)
-                Text("${stats.firstRun}ms", fontWeight = FontWeight.Bold, color = Color.Red)
-            }
-            if (stats.warmAvg > 0) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Warm Average (JIT):", style = MaterialTheme.typography.bodyMedium)
-                    Text("${stats.warmAvg}ms", fontWeight = FontWeight.Bold, color = Color(0xFF4CAF50))
-                }
-            }
-
-            val delta = if (stats.warmAvg > 0) stats.firstRun - stats.warmAvg else 0
-            if (delta > 0) {
-                Text(text = "JIT Optimization Gain: ${delta}ms faster", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 4.dp), fontStyle = FontStyle.Italic)
-
+                Text("Warm Average (JIT):", style = MaterialTheme.typography.bodyMedium)
+                Text("${stats.warmAvg}ms", fontWeight = FontWeight.Bold, color = Color(0xFF4CAF50))
             }
         }
 
-    }
+        val delta = if (stats.warmAvg > 0) stats.firstRun - stats.warmAvg else 0
+        if (delta > 0) {
+            Text(text = "JIT Optimization Gain: ${delta}ms faster", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 4.dp), fontStyle = FontStyle.Italic)
 
-    private fun calculateInSampleSize(options: BitmapFactory.Options,
-                                      reqWidth: Int,
-                                      reqHeight: Int) : Int {
-        val (height: Int, width: Int)  = options.outHeight to options.outWidth
-        var inSampleSize = 1
-
-        if (height > reqHeight || width > reqWidth) {
-            val halfHeight = height / 2
-            val halfWidth = width / 2
-            while (halfHeight / inSampleSize >= reqHeight && halfWidth / inSampleSize >= reqWidth) {
-                inSampleSize *= 2
-            }
         }
-        return inSampleSize
-
     }
+
+}
+
+private fun calculateInSampleSize(options: BitmapFactory.Options,
+                                  reqWidth: Int,
+                                  reqHeight: Int) : Int {
+    val (height: Int, width: Int)  = options.outHeight to options.outWidth
+    var inSampleSize = 1
+
+    if (height > reqHeight || width > reqWidth) {
+        val halfHeight = height / 2
+        val halfWidth = width / 2
+        while (halfHeight / inSampleSize >= reqHeight && halfWidth / inSampleSize >= reqWidth) {
+            inSampleSize *= 2
+        }
+    }
+    return inSampleSize
+
 }
 
 
