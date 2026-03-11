@@ -89,7 +89,7 @@ class MainActivity : ComponentActivity() {
             }
 
             if (currentStats.mode.isNotEmpty()) {
-                BenchmarkTable(stats - currentStats)
+                BenchmarkTable(stats = currentStats)
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
@@ -182,7 +182,7 @@ class MainActivity : ComponentActivity() {
             val delta = if (stats.warmAvg > 0) stats.firstRun - stats.warmAvg else 0
             if (delta > 0) {
                 Text(text = "JIT Optimization Gain: ${delta}ms faster", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 4.dp), fontStyle = FontStyle.Italic)
-                
+
             }
         }
 
