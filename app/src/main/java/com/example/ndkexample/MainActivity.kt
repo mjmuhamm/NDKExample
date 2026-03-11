@@ -7,12 +7,17 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -27,8 +32,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.createBitmap
@@ -100,7 +109,7 @@ class MainActivity : ComponentActivity() {
                     }
                     currentStats = BenckmarkStats("Native", firstNative, warmNative, true)
                 }) {
-                    Text("Run Data")
+                    Text("Run Native")
                 }
 
                 Button(onClick = {
@@ -148,7 +157,34 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    fun BenchmarkTable() {
+    fun BenchmarkTable(stats: BenckmarkStats) {
+        Column(modifier =  Modifier.fillMaxWidth().padding(16.dp).clip(RoundedCornerShape(8.dp)).background(
+            MaterialTheme.colorScheme.surfaceVariant).padding(16.dp)) {
+
+            Text(
+                text = "Performance Profile: ${stats.mode}",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary)
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("Cold Start (1st run):", style = MaterialTheme.typography.bodyMedium)
+                Text("${stats.firstRun}ms", fontWeight = FontWeight.Bold, color = Color.Red)
+            }
+            if (stats.warmAvg > 0) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Warm Average (JIT):", style = MaterialTheme.typography.bodyMedium)
+                    Text("${stats.warmAvg}ms", fontWeight = FontWeight.Bold, color = Color(0xFF4CAF50))
+                }
+            }
+
+            val delta = if (stats.warmAvg > 0) stats.firstRun - stats.warmAvg else 0
+            if (delta > 0) {
+                Text(text = "JIT Optimization Gain: ${delta}ms faster", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 4.dp), fontStyle = FontStyle.Italic)
+                
+            }
+        }
 
     }
 
